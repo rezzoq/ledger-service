@@ -1,0 +1,16 @@
+POST http://localhost:8080/api/accounts
+Content-Type: application/json
+
+{"name": "A", "balance": 1000}
+
+###
+POST http://localhost:8080/api/accounts
+Content-Type: application/json
+
+{"name": "B", "balance": 0}
+
+###
+POST http://localhost:8080/api/transfers
+Content-Type: application/json
+
+{"fromAccId": 1, "toAccId": 2, "amount": 300, "idempotencyKey": "k1"}
