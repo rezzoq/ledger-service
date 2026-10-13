@@ -1,0 +1,73 @@
+package bookkeeper.service;
+
+import bookkeeper.dto.TransferRequest;
+import bookkeeper.dto.TransferResponse;
+import bookkeeper.model.Account;
+import bookkeeper.model.LedgerEntry;
+import bookkeeper.model.Transfer;
+import bookkeeper.repository.AccountRepository;
+import bookkeeper.repository.LedgerEntryRepository;
+import bookkeeper.repository.TransferRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.Optional;
+
+
+@Service
+@RequiredArgsConstructor
+public class TransferService {
+
+    private final AccountRepository accountRepository;
+    private final TransferRepository transferRepository;
+    private final LedgerEntryRepository ledgerEntryRepository;
+
+    @Transactional
+    public TransferResponse transfer(TransferRequest req) {
+        if (req.fromAccId().equals(req.toAccId())) {
+            throw new IllegalArgumentException("Same account");
+        }
+
+        Optional<Transfer> existing = transferRepository.findByIdempotencyKey(req.idempotencyKey());
+        if (existing.isPresent()) {
+            return new TransferResponse(existing.get().getTransferId(), "DUPLICATE");
+        }
+
+        Transfer transfer = new Transfer();
+        transfer.setIdempotencyKey(req.idempotencyKey());
+        try {
+            transfer = transferRepository.saveAndFlush(transfer);
+        } catch (DataIntegrityViolationException race) {
+            transfer = transferRepository.findByIdempotencyKey(req.idempotencyKey())
+                    .orElseThrow(() -> race);
+            return new TransferResponse(transfer.getTransferId(), "DUPLICATE");
+        }
+
+        Account from = accountRepository.findById(req.fromAccId())
+                .orElseThrow(() -> new IllegalArgumentException("from not found"));
+        Account to = accountRepository.findById(req.toAccId())
+                .orElseThrow(() -> new IllegalArgumentException("to not found"));
+
+        if (from.getBalance().compareTo(req.amount()) < 0) {
+            throw new IllegalStateException("Insufficient funds");
+        }
+        from.setBalance(from.getBalance().subtract(req.amount()));
+        to.setBalance(to.getBalance().add(req.amount()));
+
+        saveEntry(transfer, from, req.amount().negate());
+        saveEntry(transfer, to,   req.amount());
+
+        return new TransferResponse(transfer.getTransferId(), "OK");
+    }
+
+    private void saveEntry(Transfer t, Account a, BigDecimal amount) {
+        LedgerEntry e = new LedgerEntry();
+        e.setTransfer(t);
+        e.setAccount(a);
+        e.setAmount(amount);
+        ledgerEntryRepository.save(e);
+    }
+}
