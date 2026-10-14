@@ -13,4 +13,4 @@ Content-Type: application/json
 POST http://localhost:8080/api/transfers
 Content-Type: application/json
 
-{"fromAccId": 1, "toAccId": 2, "amount": 300, "idempotencyKey": "k1"}
+{"fromAccId": 1, "toAccId": 2, "amount": 300, "idempotencyKey": "k4"}
