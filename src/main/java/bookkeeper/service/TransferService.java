@@ -8,6 +8,7 @@ import bookkeeper.model.Transfer;
 import bookkeeper.repository.AccountRepository;
 import bookkeeper.repository.LedgerEntryRepository;
 import bookkeeper.repository.TransferRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,8 @@ public class TransferService {
     private final TransferRepository transferRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
 
+    private final MeterRegistry meterRegistry;
+
     @Transactional
     public TransferResponse transfer(TransferRequest req) {
         if (req.fromAccId().equals(req.toAccId())) {
@@ -33,6 +36,7 @@ public class TransferService {
 
         Optional<Transfer> existing = transferRepository.findByIdempotencyKey(req.idempotencyKey());
         if (existing.isPresent()) {
+            meterRegistry.counter("ledger.transfers", "status", "DUPLICATE").increment();
             return new TransferResponse(existing.get().getTransferId(), "DUPLICATE");
         }
 
@@ -43,6 +47,8 @@ public class TransferService {
         } catch (DataIntegrityViolationException race) {
             transfer = transferRepository.findByIdempotencyKey(req.idempotencyKey())
                     .orElseThrow(() -> race);
+
+            meterRegistry.counter("ledger.transfers", "status", "DUPLICATE").increment();
             return new TransferResponse(transfer.getTransferId(), "DUPLICATE");
         }
 
@@ -52,6 +58,7 @@ public class TransferService {
                 .orElseThrow(() -> new IllegalArgumentException("to not found"));
 
         if (from.getBalance().compareTo(req.amount()) < 0) {
+            meterRegistry.counter("ledger.transfers", "status", "INSUFFICIENT").increment();
             throw new IllegalStateException("Insufficient funds");
         }
         from.setBalance(from.getBalance().subtract(req.amount()));
@@ -60,6 +67,7 @@ public class TransferService {
         saveEntry(transfer, from, req.amount().negate());
         saveEntry(transfer, to,   req.amount());
 
+        meterRegistry.counter("ledger.transfers", "status", "OK").increment();
         return new TransferResponse(transfer.getTransferId(), "OK");
     }
 
