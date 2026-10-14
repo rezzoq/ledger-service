@@ -52,10 +52,16 @@ public class TransferService {
             return new TransferResponse(transfer.getTransferId(), "DUPLICATE");
         }
 
-        Account from = accountRepository.findById(req.fromAccId())
-                .orElseThrow(() -> new IllegalArgumentException("from not found"));
-        Account to = accountRepository.findById(req.toAccId())
-                .orElseThrow(() -> new IllegalArgumentException("to not found"));
+        long firstId = Math.min(req.fromAccId(), req.toAccId());
+        long secondId = Math.max(req.fromAccId(), req.toAccId());
+
+        Account first = accountRepository.findByIdForUpdate(firstId)
+                .orElseThrow(() -> new IllegalArgumentException("account not found: " + firstId));
+        Account second = accountRepository.findByIdForUpdate(secondId)
+                .orElseThrow(() -> new IllegalArgumentException("account not found: " + secondId));
+
+        Account from = first.getAccountId().equals(req.fromAccId()) ? first : second;
+        Account to = (from == first) ? second : first;
 
         if (from.getBalance().compareTo(req.amount()) < 0) {
             meterRegistry.counter("ledger.transfers", "status", "INSUFFICIENT").increment();

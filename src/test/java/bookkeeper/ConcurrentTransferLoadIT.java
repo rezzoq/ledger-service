@@ -41,6 +41,32 @@ class ConcurrentTransferLoadIT {
     }
 
     @Test
+    void oppositeTransfersDoNotDeadlock() throws Exception {
+        long a = createAccount("a-" + UUID.randomUUID(), 10_000);
+        long b = createAccount("b-" + UUID.randomUUID(), 10_000);
+
+        ExecutorService pool = Executors.newFixedThreadPool(50);
+        Map<Integer, AtomicInteger> codes = new ConcurrentHashMap<>();
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (int i = 0; i < 500; i++) {
+            boolean forward = i % 2 == 0;
+            long from = forward ? a : b;
+            long to = forward ? b : a;
+            futures.add(pool.submit(() -> {
+                String body = "{\"fromAccId\":" + from + ",\"toAccId\":" + to
+                        + ",\"amount\":1,\"idempotencyKey\":\"" + UUID.randomUUID() + "\"}";
+                HttpResponse<String> r = post("/transfers", body);
+                codes.computeIfAbsent(r.statusCode(), k -> new AtomicInteger()).incrementAndGet();
+                return null;
+            }));
+        }
+        for (Future<?> f : futures) f.get();
+        pool.shutdown();
+        System.out.println("opposite codes=" + codes);
+    }
+
+    @Test
     void manyParallelTransfersOnOneAccount() throws Exception {
         long from = createAccount("hot-" + UUID.randomUUID(), 10_000);
         long to = createAccount("sink-" + UUID.randomUUID(), 0);
