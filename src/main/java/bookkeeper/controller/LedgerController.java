@@ -7,10 +7,8 @@ import bookkeeper.service.AccountService;
 import bookkeeper.service.TransferService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api")
@@ -27,5 +25,12 @@ public class LedgerController {
     @PostMapping("/transfers")
     public TransferResponse transfer(@Valid @RequestBody TransferRequest req) {
         return transferService.transfer(req);
+    }
+
+    @GetMapping("/accounts/{id}")
+    public ResponseEntity<Account> getAccount(@PathVariable long id) {
+        return accountService.findAccountById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }
