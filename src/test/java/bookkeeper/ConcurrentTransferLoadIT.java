@@ -72,6 +72,37 @@ class ConcurrentTransferLoadIT {
     }
 
     @Test
+    void sameIdempotencyKeyIsAppliedOnce() throws Exception {
+        long from = createAccount("idem-from-" + UUID.randomUUID(), 1_000);
+        long to = createAccount("idem-to-" + UUID.randomUUID(), 0);
+        String key = UUID.randomUUID().toString();
+        String body = "{\"fromAccId\":" + from + ",\"toAccId\":" + to
+                + ",\"amount\":100,\"idempotencyKey\":\"" + key + "\"}";
+
+        ExecutorService pool = Executors.newFixedThreadPool(50);
+        Map<String, AtomicInteger> results = new ConcurrentHashMap<>();
+        List<Future<?>> futures = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            futures.add(pool.submit(() -> {
+                HttpResponse<String> r = post("/transfers", body);
+                String outcome = r.statusCode() == 200
+                        ? om.readTree(r.body()).get("status").asText()
+                        : "HTTP_" + r.statusCode();
+                results.computeIfAbsent(outcome, k -> new AtomicInteger()).incrementAndGet();
+                return null;
+            }));
+        }
+        for (Future<?> f : futures) f.get();
+        pool.shutdown();
+        System.out.println("same key: " + results);
+
+        assertEquals(1, results.getOrDefault("OK", new AtomicInteger()).get());
+        assertEquals(49, results.getOrDefault("DUPLICATE", new AtomicInteger()).get());
+        assertEquals(0, balance(from).compareTo(new BigDecimal("900")));
+        assertEquals(0, balance(to).compareTo(new BigDecimal("100")));
+    }
+
+    @Test
     void manyParallelTransfersOnOneAccount() throws Exception {
         long from = createAccount("hot-" + UUID.randomUUID(), 10_000);
         long to = createAccount("sink-" + UUID.randomUUID(), 0);
