@@ -8,7 +8,7 @@ limits, and a fix that was measured against it.
 ## Features
 
 - **Double-entry ledger**: every transfer writes two immutable entries (debit and credit) that sum to zero
-- **Idempotency**: repeated requests with the same `idempotencyKey` return `DUPLICATE` and never move money twice (concurrent requests with the same key are on the roadmap)
+- **Idempotency**: repeated requests with the same `idempotencyKey` return `DUPLICATE` and never move money twice, including concurrent requests with the same key
 - **Atomic transfers**: balances and ledger entries are saved in one transaction
 - **Pessimistic locking with ordered acquisition**: accounts are locked (`SELECT ... FOR UPDATE`) in ascending id order, so opposite transfers (A to B and B to A) do not deadlock (251 of 500 did without ordering)
 - **Optimistic locking** (`@Version`) as a second safety net
@@ -54,6 +54,7 @@ Everything ran on one local machine with MySQL in Docker.
 | One hot account, pessimistic locking | 500 of 500 succeeded, median 4.6 s over 3 runs after 1 warm-up run |
 | Opposite transfers (A to B, B to A), locks in arbitrary order | 249 of 500 succeeded, 251 failed with `Deadlock found` |
 | Opposite transfers, locks in id order | 500 of 500 succeeded |
+| 50 parallel requests, same idempotency key | before: 1 OK, 40 DUPLICATE, 9 HTTP 500; after: 1 OK, 49 DUPLICATE, balances changed once |
 
 After every run the tests check that no money was lost: balances add up exactly.
 Failed requests return quickly, so the run time of the optimistic variant is not comparable
@@ -83,6 +84,6 @@ These screenshots are evidence from a local integration test, not a formal bench
 - [x] Pessimistic locking with ordered lock acquisition
 - [x] Prometheus and Grafana
 - [x] Error responses (400, 409, 422)
-- [ ] Test concurrent requests with the same idempotency key
+- [x] Test concurrent requests with the same idempotency key
 - [ ] Retry-on-conflict variant under the same load
 - [ ] Balance reconciliation job
