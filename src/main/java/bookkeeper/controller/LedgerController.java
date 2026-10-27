@@ -4,6 +4,7 @@ import bookkeeper.dto.TransferRequest;
 import bookkeeper.dto.TransferResponse;
 import bookkeeper.model.Account;
 import bookkeeper.service.AccountService;
+import bookkeeper.service.TransferFacade;
 import bookkeeper.service.TransferService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class LedgerController {
-    private final TransferService transferService;
+    private final TransferFacade transferFacade;
     private final AccountService accountService;
 
     @PostMapping("/accounts")
@@ -24,7 +25,7 @@ public class LedgerController {
 
     @PostMapping("/transfers")
     public TransferResponse transfer(@Valid @RequestBody TransferRequest req) {
-        return transferService.transfer(req);
+        return transferFacade.transfer(req);
     }
 
     @GetMapping("/accounts/{id}")

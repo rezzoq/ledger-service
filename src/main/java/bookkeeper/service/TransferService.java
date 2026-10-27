@@ -10,7 +10,6 @@ import bookkeeper.repository.LedgerEntryRepository;
 import bookkeeper.repository.TransferRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,15 +41,7 @@ public class TransferService {
 
         Transfer transfer = new Transfer();
         transfer.setIdempotencyKey(req.idempotencyKey());
-        try {
-            transfer = transferRepository.saveAndFlush(transfer);
-        } catch (DataIntegrityViolationException race) {
-            transfer = transferRepository.findByIdempotencyKey(req.idempotencyKey())
-                    .orElseThrow(() -> race);
-
-            meterRegistry.counter("ledger.transfers", "status", "DUPLICATE").increment();
-            return new TransferResponse(transfer.getTransferId(), "DUPLICATE");
-        }
+        transfer = transferRepository.saveAndFlush(transfer);
 
         long firstId = Math.min(req.fromAccId(), req.toAccId());
         long secondId = Math.max(req.fromAccId(), req.toAccId());
