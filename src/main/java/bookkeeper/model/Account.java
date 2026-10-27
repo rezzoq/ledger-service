@@ -28,4 +28,7 @@ public class Account {
 
     @Version
     private Long version;
+
+    @Column(nullable = false)
+    private BigDecimal openingBalance = BigDecimal.ZERO;
 }

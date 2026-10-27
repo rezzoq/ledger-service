@@ -14,6 +14,7 @@ limits, and a fix that was measured against it.
 - **Optimistic locking** (`@Version`) as a second safety net
 - **Error mapping**: 409 on concurrency conflicts, 422 on insufficient funds, 400 on bad input
 - **Metrics**: Spring Boot Actuator and Micrometer, scraped by Prometheus (:9090), visualised in Grafana (:3001)
+- **Reconciliation**: a scheduled job verifies balances against ledger entries and exposes a mismatch gauge
 - Flyway migrations, DB-level constraints (`balance >= 0`, unique idempotency key), money as `DECIMAL(19, 4)`
 
 ## Stack
@@ -78,6 +79,18 @@ With pessimistic account locks acquired in ascending account-id order, the test 
 
 These screenshots are evidence from a local integration test, not a formal benchmark. Gaps between runs are expected: while no requests are being sent, Prometheus has no request observations from which to calculate p95 latency. A gap should not be read as zero latency.
 
+
+## Reconciliation
+
+A scheduled job checks every 30 seconds that each account balance equals its opening
+balance plus the sum of its ledger entries, and exposes the number of mismatching
+accounts as a Prometheus gauge.
+
+![Reconciliation gauge: 0, then 1 after a manual balance edit, then 0 after the fix](docs/reconciliation.png)
+
+The spike was produced by editing one balance by hand in MySQL and reverting it.
+Under the load tests the gauge stays at 0 checked every 30 s.
+
 ## Roadmap
 
 - [x] Concurrency tests (hot account, opposite transfers)
@@ -86,4 +99,4 @@ These screenshots are evidence from a local integration test, not a formal bench
 - [x] Error responses (400, 409, 422)
 - [x] Test concurrent requests with the same idempotency key
 - [ ] Retry-on-conflict variant under the same load
-- [ ] Balance reconciliation job
+- [x] Balance reconciliation job

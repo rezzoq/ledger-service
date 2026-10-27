@@ -37,6 +37,7 @@ public class AccountService {
             throw new IllegalArgumentException("Account name already exists");
         }
         else {
+            account.setOpeningBalance(account.getBalance());
             return accountRepository.save(account);
         }
     }
